@@ -1,0 +1,416 @@
+---
+title: "STAT 440: Homework 02"
+author: Spring 2021, Anurag Anand
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(jsonlite)
+library(tokenizers)
+
+```
+
+
+#### Due: Monday, February 22 by 11:00 PM CT
+
+
+
+# Assignment
+
+
+## Exercise 1 (Markdown)
+
+#### __1__ Personal Interest Survey
+
+If I offered in-person office hours for students in this course, would you be interested in attending?
+
+* No
+
+ If I offered an online Zoom or Slack or discussion board environment for students in this course (and no instructor or TA to interfere) to just hang out and get to know each other, would you be interested in attending?
+ 
+ * Yes
+ * Slack
+ 
+#### __2__ Importing the subset of the SBA Business Loans Data using R
+ 
+
+```{r Read SBA Data, echo=TRUE, warning=FALSE}
+
+## Reading data and formatting date columns
+sba_bl_data = read_delim("https://uofi.box.com/shared/static/liz915g0j5zeg67of0ykhoa1shwnr2at"
+                         ,"\t"
+                         ,escape_double = FALSE
+                         ,col_types = cols(ApprovalDate = col_date(format = "%d-%b-%y")
+                         ,ChgOffDate = col_date(format = "%d-%b-%y")
+                         ,DisbursementDate = col_date(format = "%d-%b-%y"))
+                         ,trim_ws = TRUE)
+
+print(paste("#Rows:", nrow(sba_bl_data),"#Cols:",ncol(sba_bl_data),sep = " "))
+```
+
+
+Displaying the first five rows of the data
+
+```{r Head SBA Data, echo=TRUE}
+head(sba_bl_data,5)
+
+```
+
+
+Description of the entire data set:
+
+```{r Tail SBA Data, echo=TRUE}
+str(sba_bl_data)
+
+```
+
+#### __3__ Assigning, subsetting and Formatting Data
+
+The following operations are being done on the SBA dataset
+
+* Filteration for the loan apporval date between 1970 and 2013
+* Filtering out of the NAICS not corresponding to Agriculture, Forestry, Fishing and Hunting
+* Filteration for such loans where gross approved amount is greater than gross disbursement
+* Creation of a new variable called Loan Discrepancy
+* Treatment of the Currency columns (converting them from character to numeric)
+* Subsetting of the dataset by selecting certain columns
+* Printing of the first 5 and last 5 observations from the data set  
+
+```{r wrangling sba data , echo=TRUE}
+
+## Using the year fucntion from the lubridate package to extract the year part from the Approval date
+
+outsiders = sba_bl_data %>% 
+  filter(year(ApprovalDate) > 1970 & year(ApprovalDate) < 2013) %>% 
+  mutate(NAICS = as.character(NAICS)) %>% filter(substr(NAICS, start = 0, stop = 2) != "11") %>% 
+  mutate(
+    GrAppv = as.numeric(gsub('\\$|,', '', GrAppv)),
+    SBA_Appv = as.numeric(gsub('\\$|,', '', SBA_Appv)),
+    DisbursementGross = as.numeric(gsub('\\$|,', '', DisbursementGross)),
+    BalanceGross = as.numeric(gsub('\\$|,', '', BalanceGross))
+  ) %>% 
+  filter(GrAppv > DisbursementGross) %>% 
+  mutate(loandiscrepancy = abs(GrAppv - DisbursementGross)) %>% 
+  select(c("GrAppv","SBA_Appv","DisbursementGross","BalanceGross","loandiscrepancy"))
+
+head(outsiders, 5)
+tail(outsiders, 5)
+```
+
+
+#### __4__ File Formats and Extensions, Accessing and Importing data
+
+Reading Trump's tweet data from the twitter archive and formatting the date column
+
+```{r Date Formatting Trump Data}
+TrumpsTweet = fromJSON("https://uofi.box.com/shared/static/xu6tke7xz7v9hdax35j2gykacc5v81kd.json")
+
+## The code chunk below reads in the character date field (created_at) and converts it to 
+
+TrumpsTweet = TrumpsTweet %>% separate(created_at,into = c("weekday",
+                                             "month",
+                                             "day",
+                                             "time",
+                                             "ms",
+                                             "year"),sep = " ", remove = TRUE) %>% 
+  separate(time, into = c("hour","minute","second"),sep = ":", remove = TRUE) %>% 
+  select(-c("ms"
+            ,"weekday")) %>% unite("tweettime",c("year"
+                                           ,"month"
+                                           ,"day"
+                                           ,"hour"
+                                           ,"minute"
+                                           ,"second"),sep = "-",remove = TRUE) %>% 
+  mutate(tweettime = ymd_hms(tweettime))
+
+
+```
+
+Displaying the first five rows of the data set
+
+```{r Head Trump Data}
+
+head(TrumpsTweet, 5)
+
+```
+
+Displaying the last five rows of the data set
+
+```{r Tail Trump Data}
+
+tail(TrumpsTweet, 5)
+
+```
+
+
+Displaying the Structure of the data set
+
+```{r Structure Trump Data}
+
+str(TrumpsTweet)
+
+```
+
+
+#### __5__ Total number of times the patriotic terms are used in President Trump's tweets
+
+```{r Patriotic Word Count}
+## Creating a vector of all the patriotic terms
+
+PatrioticWords = c('all-American'
+                   ,'allegiance'
+                   ,'America'
+                   ,'American'
+                   ,'brave'
+                   ,'bravery'
+                   ,'country'
+                   ,'courage'
+                   ,'courageous'
+                   ,'flag'
+                   ,'flag-waving'
+                   ,'freedom'
+                   ,'hero'
+                   ,'heroes'
+                   ,'home of the brave'
+                   ,'land of the free'
+                   ,'love of country'
+                   ,'nation'
+                   ,'national'
+                   ,'patriot'
+                   ,'patriotic'
+                   ,'red-blooded'
+                   ,'stars and stripes'
+                   ,'US'
+                   ,'USA'
+                   ,'United States')
+
+## Expanding(by replacing hyphen with space. Both the original and changed word will be retained in the analysis) on the list of words that can be counted as patriotic 
+
+## and converting them all to the lower case
+
+for(columns in PatrioticWords){
+  if(grepl('-',columns)){PatrioticWords = c(PatrioticWords,gsub('-',' ',columns)) }
+}
+
+## and converting them all to the lower case
+PatrioticWords = tolower(PatrioticWords)
+
+## Creating an empty data frame to store the list of patriotic terms and their frequency in the data set
+
+term_freq_df = data.frame(term = character(0), termfrequency = numeric(0))
+
+## Finding the frequency of each patriotic term and storing it in a data frame
+
+for(terms in PatrioticWords){
+  term_freq = sum(sapply(TrumpsTweet$text, function(x) sum(unlist(tokenize_words(tolower(x))) %in% c(terms))))
+  
+  term_freq_df = rbind(term_freq_df,c(terms,term_freq))
+}
+
+## Changing the column names
+colnames(term_freq_df) = c("term","term_frequency")
+
+## Displaying the data set 
+print(term_freq_df)
+```
+
+The raw total count of the patriotic terms used by President Trump in the data set is:
+
+```{r Print Patritoic Frequency, echo=TRUE}
+print(sum(as.numeric(term_freq_df$term_frequency)))
+```
+
+Is the raw total count of patriotic terms greater than the number of tweets?
+
+```{r Patriotic Freq Check, echo=TRUE}
+
+## Checking on the condition below
+if (sum(as.numeric(term_freq_df$term_frequency)) > nrow(TrumpsTweet)) {
+  print("Yes")
+}else{
+  print("No")
+}
+
+```
+
+#### __6__ Chicago Food Inspection Data
+
+Importing the Chicago Food Inspection data, Formatting the columns and printing the results
+
+```{r Chicago Food Inspection Data}
+
+library(readr)
+
+## Reading the data
+cfid <- read_delim("https://uofi.box.com/shared/static/rtys18ia66k3x51g0z31eqxmr79p5yvo.txt", "&", escape_double = FALSE, col_types = cols(`Inspection Date` = col_date(format = "%m/%d/%Y")), trim_ws = TRUE)
+
+```
+
+printing last 5 observations from the cfid dataset
+
+```{r Last n obs}
+
+tail(cfid,5)
+
+```
+
+Checking the structure of the cfid dataset
+
+```{r cfid str}
+
+str(cfid)
+
+```
+
+#### __7__ Creating the inspections data set after applying all the filters
+
+```{r Inspection Data Creation}
+
+## Applying all the filters required for creating the inspections data set
+inspections = cfid %>% 
+  filter(`Inspection Date` <= as.Date("2018-07-01")) %>% 
+  select(-c('Address'
+           ,`Census Tracts`
+           ,'City'
+           ,`Community Areas`
+           ,`Historical Wards 2003-2015`
+           ,'Location'
+           ,'State'
+           ,'Wards'
+           ,`Zip Codes`)) %>% 
+  mutate(pass_or_not = case_when(
+    Results == 'Pass' ~ 1,
+    Results == 'Pass w/ Conditions' ~ 0,
+    Results == 'Fail' ~ 0
+  ))  %>% drop_na()
+  
+
+## Finding out the violation count for each establishment
+violation_count = inspections %>% group_by(`DBA Name`) %>% 
+  summarize(`total_violations` = n())
+
+## Joining the violation count data set with the inspections data
+inspections = inner_join(inspections, violation_count, by = "DBA Name")
+
+## Printing the first 5 observations of the dataset
+print(head(inspections,5), width = Inf)
+
+```
+
+#### __8__ Sorting the data and creating violations column
+
+```{r Violation Data Creation}
+inspections2 = inspections %>% 
+  group_by(`AKA Name`,`License #`,`Inspection Date`) %>% 
+  arrange(`AKA Name`,`License #`, desc(`Inspection Date`)) %>% 
+  select(-c(`DBA Name`,'Zip'))
+
+#Ignore the first violations
+
+additionalviolations <- str_extract_all(inspections$Violations, "\\| (\\d+)[.]", simplify=TRUE)
+
+
+## Creating the critical violation field
+criticalviolations <- rep(0, length(inspections$Violations))
+
+for(j in 1:nrow(additionalviolations)){
+  criticalviolations[j] <- sum(as.numeric(str_remove(additionalviolations[j,], "[^\\d]."))<15, na.rm = TRUE)
+}
+
+# Adding it to the inspections 2 data set
+inspections2 = cbind(inspections2, criticalviolations = criticalviolations)
+
+## Creating the serious violation field
+seriousviolations <- rep(0, length(inspections$Violations))
+
+for(j in 1:nrow(additionalviolations)){
+  seriousviolations[j] <- sum(as.numeric(str_remove(additionalviolations[j,], "[^\\d]."))>14 & as.numeric(str_remove(additionalviolations[j,], "[^\\d]."))<30, na.rm = TRUE)
+}
+
+## Adding the serious violations field to the dataset
+inspections2 = cbind(inspections2, seriousviolations = seriousviolations)
+
+## Creating the violation severity column
+inspections2 = inspections2 %>% 
+  mutate(violation_severity = case_when(
+    criticalviolations > 0 | seriousviolations > 0 ~ 1,
+    criticalviolations == 0 & seriousviolations == 0 ~ 0
+  ))
+
+## Printing the 1st, 5th and 10th Observation of the data frame
+print(inspections2[1,], width = Inf)
+print(inspections2[5,], width = Inf)
+print(inspections2[10,], width = Inf)
+
+```
+
+#### __9__ Analysis on the violations
+
+* Among the 10 businesses with the most total violations, which type of facility was the most common ?
+  
+  - Restaurant
+
+```{r Vioaltion Analysis}
+## Finding out the top 10 businesses that had the most number of violations
+top_violation_count = sort(unique(inspections2$total_violations), decreasing = TRUE)[1:10]
+
+## Which facility was the most common
+top_violation_df = inspections2 %>% 
+  filter(total_violations %in% top_violation_count) %>% 
+  group_by(`AKA Name`,`License #`,`Inspection Date`) %>% 
+  arrange(desc(total_violations),`AKA Name`,`License #` ,desc(`Inspection Date`)) %>% 
+  group_by(`Facility Type`) %>% summarise(inspection_count = n_distinct(`Inspection ID`))
+
+head(top_violation_df)
+
+```
+
+* Which 10 businesses had the most serious violations ?
+
+```{r n Most Serious Violations}
+most_serious_violation = inspections2 %>% 
+  group_by(`AKA Name`) %>% 
+  summarise(sum_serious_violations = sum(seriousviolations)) %>% 
+  arrange(desc(sum_serious_violations)) %>% top_n(10)
+
+print(most_serious_violation, width = Inf)
+```
+
+* Which 10 businesses had the most critical violations ?
+
+```{r Most Critical Violations}
+most_critical_violation = inspections2 %>% 
+  group_by(`AKA Name`) %>% 
+  summarise(sum_critical_violations = sum(criticalviolations)) %>% 
+  arrange(desc(sum_critical_violations)) %>% top_n(10)
+
+print(most_critical_violation, width = Inf)
+```
+
+* Is the business with the most critical violations the same as the business with the most serious violations ?
+  
+  - Yes, and the name of the business is Subway
+
+#### __10__ Analysis on the violations
+
+A list of all the inspections that are in contradiction to the Chicago Department of Public Health's Statment on their 'pass' awarding
+
+```{r Falsehood Check}
+
+## Falsehood checking
+falsehoods = inspections2 %>% filter(pass_or_not == 1 & violation_severity == 1)
+print(head(falsehoods,10),width = Inf)
+
+```
+
+
+

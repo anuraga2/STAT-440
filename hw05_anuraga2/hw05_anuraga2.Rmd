@@ -1,0 +1,356 @@
+---
+title: "STAT 440: Homework 5"
+author: "Anurag Anand"
+date: "19/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(readr)
+library(sqldf)
+library(tibble)
+library(jsonlite)
+library(dplyr)
+
+```
+
+
+#### Excercise 1
+
+Importing the baseball dataset and printing the descriptor portion of the data set
+
+
+```{r Question1, echo=TRUE, warning=FALSE, message=FALSE}
+# Question 1
+baseball = read_csv("https://uofi.box.com/shared/static/w8tycn7kn21vz88qh0euce2mwg76t0d9.csv")
+
+# Printing the descriptor portion of the dataset
+str(baseball)
+```
+
+#### Excercise 2
+
+Based on the baseball data set created in Exercise 1, how many players made more than $2 million in the 1987 season? Print a table of all players who make more than $2 million
+
+```{r Question2, echo=TRUE, warning=FALSE, message=FALSE}
+
+# finding out the players’ names, team, position, and salary who made more than 2 million USD
+mt_2mil = sqldf("
+                select 
+                Name,
+                Team,
+                Position,
+                Salary
+                
+                from baseball
+                where Salary > 2000
+                
+                ")
+
+print(as.tibble(mt_2mil))
+```
+
+
+#### Excercise 3
+
+How many players play each Position? Create a frequency table of only those Positions that have at least 10 players.
+
+```{r Question3a, echo=TRUE, warning=FALSE, message=FALSE}
+
+# Finding out how many players play at each position
+player_pos_mt10 = as.tibble(sqldf("
+
+                      select Position,
+                             count(distinct Name) as `Player Count`
+                             
+                             from baseball
+                             group by Position
+                             having count(distinct Name) >= 10
+                             order by `Player Count` desc
+                "))
+
+print(player_pos_mt10)
+
+```
+
+Creating a frequency table for all the players positions that have less than 10 players:
+
+```{r Question3b, echo=TRUE, warning=FALSE, message=FALSE}
+
+
+as.tibble(sqldf("
+
+                      select Position,
+                             count(distinct Name) as `Player Count`
+                             
+                             from baseball
+                             group by Position
+                             having count(distinct Name) < 10
+                             order by `Player Count` desc
+                "))
+```
+
+
+All the positions don't look valid. The following table contains the same entries as above, but with a valid position name
+
+| Position | Player Count |
+|----------|--------------|
+| OF       | 4            |
+| 3B       | 5            |
+| OF       | 2            |
+| DH       | 2            |
+| SS       | 1            |
+| OF       | 1            |
+| CF       | 2            |
+| 2B       | 2            |
+| 1B       | 2            |
+
+#### Excercise 4
+
+Importing the 1996 NBA Season Data (existing as three separate data sets) using R programming language software and the data URLs stint1, stint2, and stint3 and printing the descriptor portion of each dataset
+
+```{r Question4, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Reading stint data
+stint1 = fromJSON("https://uofi.box.com/shared/static/vytgfoo28wf9q4tct61j3sk02pwpsjsn.json")
+stint2 = fromJSON("https://uofi.box.com/shared/static/3zu8hqubabw8hxqt14qwjpeginf2orgo.json")
+stint3 = fromJSON("https://uofi.box.com/shared/static/cfqaufkt73f8iej2v4pf2bsc4b6ok955.json")
+
+# printing the descriptor portion of each data set
+print(str(stint1))
+print(str(stint2))
+print(str(stint3))
+
+```
+
+
+
+#### Excercise 5
+
+Performing various operations on the NBA data set and then listing the players alphabetically. We will be showing only the following columns:  player name, player ID, position, age, ptm
+
+```{r Question5, echo=TRUE, message=FALSE, warning=FALSE}
+
+nba1996_1 = sqldf("select *,
+                  (AST *1.0) / (TOV*1.0) as ato,
+                  PTS*1.0 / MP*1.0 as ptm,
+                  ((ThreeP*1.0) / (ThreePA*1.0))*100  as threeptpercentage
+                  from
+                  (
+                  select * from stint1
+                  union 
+                  select * from stint2
+                  union
+                  select * from stint3
+                  )
+                  group by playerID
+                  having stint = max(stint)
+                  order by ptm desc, playerID
+                  ")
+
+as.tibble(sqldf("
+                select 
+                Player,
+                playerID,
+                Pos,
+                Age,
+                ptm
+                from
+                nba1996_1
+                limit 5
+                "))
+
+```
+
+
+#### Excercise 6
+
+creating the "nba1996_2” such that the data is sorted by rebounds in descending order then player ID alphabetically and showing the following columns only: player name, player ID, position, age, rebounds
+
+```{r Question6, echo=TRUE, warning=FALSE, message=FALSE}
+
+# Removing the variable team and stint 
+stint1_n = stint1 %>% select(-Tm, -stint)
+stint2_n = stint2 %>% select(-Tm, -stint)
+stint3_n = stint3 %>% select(-Tm, -stint)
+
+# Aggregating the data
+nba1996_2 = sqldf("
+                  select Player,
+                         PlayerID,
+                         Pos,
+                         AVG(Age) as Age,
+                         sum(G) as G,
+                         sum(GS) as GS,
+                         sum(MP) as MP,
+                         sum(FG) as FG,
+                         sum(FGA) as FGA,
+                         sum(ThreeP) as ThreeP,
+                         sum(ThreePA) as ThreePA,
+                         sum(TwoP) as TwoP,
+                         sum(TwoPA) as TwoPA,
+                         sum(FT) as FT,
+                         sum(FTA) as FTA,
+                         sum(ORB) as ORB,
+                         sum(DRB) as DRB,
+                         sum(AST) as AST,
+                         sum(STL) as STL,
+                         sum(BLK) as BLK,
+                         SUM(TOV) as TOV,
+                         SUM(PF) as PF,
+                         SUM(PTS) as PTS,
+                         sum(ORB) + sum(DRB) as rebounds,
+                         ((
+                         sum(PTS) + 
+                         (sum(ORB) + sum(DRB)) + 
+                         sum(AST) + 
+                         SUM(STL) + 
+                         sum(BLK) -
+                         ((sum(FGA) - sum(FG)) + (sum(FTA) - sum(FT))) + sum(TOV))*1.0) / (sum(G)*1.0) as efficiency
+                         
+                         from 
+                          (
+                          select * from stint1_n 
+                          union
+                          select * from stint2_n
+                          union
+                          select * from stint3_n
+                          )
+                          group by Player, PlayerID, Pos
+                          order by rebounds desc, PlayerID
+                  ")
+
+# Printing the result
+as.tibble(sqldf("
+                select 
+                Player,
+                playerID,
+                Pos,
+                Age,
+                rebounds
+                from
+                nba1996_2
+                limit 5
+                "))
+
+
+```
+
+#### Excercise 7
+
+Which of the 15 most efficient players in the 1996-1997 season are in the NBA Hall of Fame?
+
+```{r Question7, echo=TRUE, message=FALSE, warning=FALSE}
+
+as.tibble(sqldf("
+                select 
+                Player,
+                playerID,
+                efficiency
+                from
+                nba1996_2
+                order by efficiency desc
+                limit 15
+                "))
+
+```
+
+
+The following players who were the top 15 most efficient player in the 1996 - 97 season also feature on the __NBA Hall of Fame List__:
+
+* **Karl Malone**
+* **Shaquille O'Neal**
+* **Grant Hill**
+* **Charles Barkley**
+* **Hakeem Olajuwon**
+* **Patrick Ewing**
+* **Michael Jordan**
+* **Alonzo Mourning**
+
+
+#### Excercise 8
+
+Importing the subset of the SBA Business Loans Data and printing the subset of the data 
+
+```{r Question8, echo=TRUE, message=FALSE, warning=FALSE}
+
+sba_bl_data = read_delim("https://uofi.box.com/shared/static/liz915g0j5zeg67of0ykhoa1shwnr2at", 
+                          "\t", escape_double = FALSE, 
+                         col_types = cols(ApprovalDate = col_date(format = "%d-%b-%y"), 
+                                          ChgOffDate = col_date(format = "%d-%b-%y"), 
+                                          DisbursementDate = col_date(format = "%d-%b-%y"), 
+                                          DisbursementGross = col_number(), 
+                                          BalanceGross = col_number(), 
+                                          ChgOffPrinGr = col_number(), 
+                                          GrAppv = col_number(), 
+                                          SBA_Appv = col_number()), 
+                          trim_ws = TRUE)
+
+print(str(sba_bl_data))
+
+```
+
+#### Excercise 9
+
+The following operations are being done on the SBA dataset:
+
+* Filteration for the loan apporval date between 1970 and 2013
+* Filtering out of the NAICS not corresponding to Agriculture, Forestry, Fishing and Hunting
+* Filteration for such loans where gross approved amount is greater than gross disbursement
+* Creation of a new variable called Loan Discrepancy
+* Subsetting of the dataset by selecting certain columns
+* Printing of the first 5 and last 5 observations from the data set
+
+```{r Question9, echo=TRUE, warning=FALSE, message=FALSE}
+
+outsiders = sqldf("
+                  select 
+                  Name,
+                  City,
+                  State,
+                  BankState,
+                  ApprovalFY,
+                  NoEmp,
+                  abs(GrAppv - DisbursementGross) as loandiscrepancy
+                  from sba_bl_data
+                  where FLOOR(NAICS/10000) != 11 
+                  and GrAppv > DisbursementGross
+                  and ApprovalFY >= 1970 and ApprovalFY <= 2013
+                  order by ApprovalFY
+                  ")
+
+# Printing first 5 obs
+print(head(outsiders),5)
+
+# printing last 5 obs
+print(tail(outsiders),5)
+
+```
+
+
+#### Excercise 10
+
+Using the outsider data to create a single dataset that contains only the missing values in the data and their corresponding columns. Then printing the number of unique businesses observations in this dataset
+
+```{r Question10, echo=TRUE, warning=FALSE, message=FALSE}
+
+# Filtering out the businnesses where there is missing value in any of the rows
+missing_info_buis = sqldf("
+                            select Name
+                            from outsiders
+                            where Name is null 
+                            or City is null
+                            or State is null
+                            or BankState is null
+                            or ApprovalFY is null
+                            or NoEmp is null
+                            or loandiscrepancy is null
+                          
+                          ")
+
+print(length(unique(missing_info_buis$Name)))
+
+
+```
+

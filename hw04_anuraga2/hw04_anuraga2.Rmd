@@ -1,0 +1,325 @@
+---
+title: "STAT 440: Homework 04"
+author: "Anurag Anand"
+date: "27/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(readr)
+library(dplyr)
+library(jsonlite)
+
+```
+
+
+### Excercise 1
+
+Based on the image, which of the following best describes how the data is arranged ?
+
+* Sorted by Date then State
+
+### Excercise 2
+
+Importing the NBA Season Data (as three separate data sets)
+
+```{r NbaData, echo=TRUE, message=FALSE, warning=FALSE}
+
+## Reading in three basket ball data sets as separate files and then printing out the 
+## first five observations of each data set
+
+stint1 = fromJSON("https://uofi.box.com/shared/static/vytgfoo28wf9q4tct61j3sk02pwpsjsn.json")
+
+stint2 = fromJSON("https://uofi.box.com/shared/static/3zu8hqubabw8hxqt14qwjpeginf2orgo.json")
+
+stint3 = fromJSON("https://uofi.box.com/shared/static/cfqaufkt73f8iej2v4pf2bsc4b6ok955.json")
+
+```
+
+
+First 5 rows of the `stint1` data set
+
+```{r stint1, echo=TRUE, message=FALSE, warning=FALSE}
+
+head(stint1,5)
+
+```
+
+
+First 5 rows of the `stint2` data set
+
+```{r stint2, echo=TRUE, message=FALSE, warning=FALSE}
+
+head(stint2,5)
+
+```
+
+
+First 5 rows of the `stint3` data set
+
+```{r stint3, echo=TRUE, message=FALSE, warning=FALSE}
+
+head(stint3,5)
+
+```
+
+### Excercise 3
+
+Creating a data set that lists the top players with highest points to minutes played ratio
+
+```{r Excercise3, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Combining the three files in 1 file 
+
+nba1996_1 = rbind(stint1,stint2,stint3)
+
+# Filtering the most recent data for each player and creating the columns 
+# ato = assists divided by turnovers
+# ptm = points divided by minutes played
+# threeptpercentage = three-point shots made out of three-point attempts multiplied by 100
+
+# After that sorting the data by ptm (descending), playerid alphabetically, and then selecting only
+# the following columns:
+# player name, player id, position, age, ptm
+
+
+nba1996_1 = nba1996_1 %>% 
+            group_by(PlayerID) %>% 
+            mutate(max_stint = max(stint)) %>% 
+            filter(stint == max_stint) %>% select(-max_stint) %>% 
+            mutate(ato = AST / TOV,
+                   ptm = PTS / MP,
+                   threeptpercentage = (ThreeP / ThreePA)*100) %>% 
+            arrange(desc(ptm), PlayerID) %>% 
+            select(Player, PlayerID, Pos, Age, ptm)
+
+print(head(nba1996_1,5))
+
+```
+
+### Excercise 4
+Creating a data set that lists the top players with highest rebounds
+
+```{r Excercise4, echo=TRUE, message=FALSE, warning=FALSE}
+
+nba1996_2 = rbind(stint1,stint2,stint3)
+
+nba1996_2 = nba1996_2 %>% 
+            select(-c(Tm, stint)) %>% 
+            group_by(Player, PlayerID, Age, Pos) %>% summarise_all(list(sum))
+
+
+# Creating new variables called rebounds and efficiency
+nba1996_2 = nba1996_2 %>% 
+            mutate(rebounds = ORB + DRB) %>%
+            mutate(efficiency = ((PTS + 
+                                rebounds + 
+                                AST + 
+                                STL + 
+                                BLK - 
+                                ((FGA - FG) + (FTA - FT)) + 
+                                TOV) / G)) %>% arrange(desc(rebounds), PlayerID)
+                               
+
+# Listing the top players with highest rebounds
+head(nba1996_2 %>% select(Player, PlayerID, Pos, Age, rebounds),5)
+
+```
+
+### Excercise 5
+
+Finding out the list of most efficient players in the __NBA Season (1996 - 97)__ and then comparing it with the NBA Hall of fame list
+
+```{r Excercise5, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Displaying the list of top 15 players with highest efficiency
+
+head((nba1996_2 %>% ungroup() %>% select(Player, efficiency) %>% arrange(desc(efficiency))),15)
+
+```
+
+The following players who were the top 15 most efficient player in the 1996 - 97 season also feature on the __NBA Hall of Fame List__:
+
+* **Karl Malone**
+* **Shaquille O'Neal**
+* **Grant Hill**
+* **Charles Barkley**
+* **Hakeem Olajuwon**
+* **Patrick Ewing**
+* **Michael Jordan**
+* **Alonzo Mourning**
+
+
+### Excercise 6
+
+Creating the total stints and longest variable and printing the resulting data sets
+
+```{r Excercise6, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Creating the combined data set
+nba_1996_3 = rbind(stint1,stint2,stint3)
+
+# Creating a data frame that contains player details and the number of stints they had in this season
+
+nba_1996_3_1 = nba_1996_3 %>% 
+              group_by(PlayerID) %>% 
+              mutate(total.stints = max(stint)) %>% 
+              filter(stint == total.stints)
+
+## Creating a separate dataset that contains the longest duration of games played by each player for a particular team
+
+nba_1996_3_2 = nba_1996_3 %>% 
+  group_by(PlayerID, Tm) %>% 
+  mutate(total.games = sum(G)) %>% 
+  group_by(PlayerID) %>% 
+  mutate(longest = max(total.games)) %>% 
+  filter(total.games == longest) %>% 
+  group_by(PlayerID) %>% filter(stint == min(stint))
+
+# Joining the two data sets created above in single data set 
+# joining the two data sets created above on player id. Subsetting them both before joining 
+nba_1996_3_1 = nba_1996_3_1 %>% select(Player, PlayerID, Pos, total.stints)
+nba_1996_3_2 = nba_1996_3_2 %>% select(Player, PlayerID, Pos, longest)
+
+
+nba_1996_3 = nba_1996_3_1 %>% 
+  inner_join(nba_1996_3_2, by = "PlayerID") %>% 
+  select(Player.x ,PlayerID, Pos.x, total.stints, longest) %>% 
+  arrange(desc(total.stints), PlayerID)
+
+# Renaming the columns
+colnames(nba_1996_3) = c("Player","PlayerID","Pos","total.stints","longest")
+
+# displaying the top 10 rows
+head(nba_1996_3, 10)
+
+```
+
+### Excercise 7
+
+
+Reading the three data sets, namely, `ads_demo_big`, `trips_big` and `delivery_stores_big`
+
+```{r Excecise7, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Reading the ads_demo_big data set from the link provided
+ads_demo_big = read_csv("https://uofi.box.com/shared/static/buv7xuweoq51zw4obcf2netx4d16295h.csv")
+
+# Reading the trips_big data set from the link provided. The file is tab delimited
+trips_big = read_delim("https://uofi.box.com/shared/static/wmsx1tvrrncryf0ue7ldp4szhizdb3gf.txt", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+
+# Reading the delivery_stores_big data from the link provided. The file is space delimited and double quotes
+# are escaped while reading in the file
+delivery_stores_big = read_delim("https://uofi.box.com/shared/static/56bzob5ub1pu5im5fgm1125e4xocbwj2",
+                                   " ",escape_double = TRUE, trim_ws = TRUE)
+
+```
+
+Printing the structure of the demographics data.
+
+```{r DemoData, echo=TRUE,warning=TRUE, message=FALSE}
+
+print(str(ads_demo_big))
+
+```
+
+Printing the structure of the trips data.
+
+```{r TripsData, echo=TRUE,warning=TRUE, message=FALSE}
+
+print(str(trips_big))
+
+```
+
+Printing the structure of the Store data.
+
+```{r StoreData, echo=TRUE,warning=TRUE, message=FALSE}
+
+print(str(delivery_stores_big))
+
+```
+
+### Excercise 8
+
+Among the panelists with at least one child aged 0-17 years, which panelists spend at least one hundred dollars at least 3 different grocery stores in the first 40 weeks of the year?
+
+```{r Question8, echo=TRUE,warning=TRUE,message=FALSE}
+
+# Subsetting panelist id's for those who have at least one child in the age bracket of 0-17
+
+ads_demo_fil = ads_demo_big %>% 
+              filter(`Children Group Code` %in% c(1,2,3,4,5,6,7))
+
+
+# Filtering the trips data for the first 40 weeks of the year
+# week 1: 1114
+# week 40: 1114 + (40-1)*1 = 1153
+
+trips_data_filtered = trips_big %>% 
+                      filter(WEEK >= 1114 & WEEK <= 1153)
+
+# Joining the filtered demographics data with the filtered trips data
+
+ads_demo_fil %>% 
+  inner_join(trips_data_filtered, by = c("Panelist ID"="PANID")) %>% 
+  group_by(`Panelist ID`) %>% 
+  summarise(Num_Stores = n_distinct(IRI_Key),
+            dollars_spent = sum(CENTS999)/100) %>% ungroup() %>% 
+            filter(Num_Stores >= 3 & dollars_spent >= 100) %>% arrange(`Panelist ID`) %>% 
+            inner_join(ads_demo_fil, by = c("Panelist ID"="Panelist ID")) %>% select(`Panelist ID`,
+                                                                                     `Children Group Code`,
+                                                                                     dollars_spent,
+                                                                                     Num_Stores) %>% head(10)
+
+```
+
+
+### Excercise 9
+
+Among any panelists who shop at the same grocery stores, how many panelists - who are renting their homes - spend more than five hundred dollars in the first 6 months of the year?
+ 
+```{r Excercise9, echo=TRUE, warning=FALSE, message=FALSE}
+
+## Filtering out the panelists who are renting out their homes
+
+renters = ads_demo_big %>% filter(`Type of Residential Possession` == 1)
+
+## Filtering the trips data for the first 6 months, summarizing it by store and pan id and then joining it
+## with the table created above (which contains the panelist id for all the renters)
+
+trips_big %>% filter(WEEK <= 1139) %>% arrange(IRI_Key, PANID) %>% 
+            group_by(IRI_Key, PANID) %>% summarise(tot_exp = sum(CENTS999)/100) %>% 
+            filter(tot_exp >500) %>% ungroup() %>% inner_join(renters, by = c("PANID"="Panelist ID")) %>% 
+            select("PANID",
+                   `Type of Residential Possession`,
+                   'tot_exp') %>% arrange("PANID") %>% head(10)
+
+```
+ 
+ 
+### Excercise 10
+ 
+ Which panelists - with more than one person living in their household - spend at least $1000 at 2 or more stores each (if any)?
+ 
+ 
+```{r Excercise10, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Filtering out for panelists with more than one person living in their household
+
+fam_siz_mt1 = ads_demo_big %>% filter(`Family Size` %in% c(2,3,4,5,6))
+
+# Finding out the expenditure of each panelist at a store level. Then filtering out the stores which have
+# expenditure less than 1000 dollars. One we have the list of panelists we find out the number of stores 
+# they have had that expenditure at and again filter out the panelists who have done this expenditure at less
+# than 2 stores. Finally joining the resultant data set with the data set "fam_siz_mt1"
+
+trips_big %>% 
+  group_by(PANID, IRI_Key) %>% 
+  summarise(tot_exp = sum(CENTS999)/100) %>% 
+  filter(tot_exp >= 1000) %>% group_by(PANID) %>% summarise(num_stores = n_distinct(IRI_Key)) %>% 
+  filter(num_stores >=2) %>% inner_join(fam_siz_mt1, by = c("PANID"="Panelist ID")) %>% 
+  arrange(PANID) %>% select(PANID,`Family Size`)
+
+```

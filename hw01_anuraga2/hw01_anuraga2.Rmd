@@ -1,0 +1,115 @@
+---
+title: "STAT 440: Homework 01"
+author: Spring 2021, Anurag Anand
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##### Due: Monday, February 8 by 11:30 PM CT
+
+## Exercise 1 (Markdown)
+
+* First Name: Anurag
+* Last Name: __Anand__
+* Level of Study: MS
+* Field of Study: Statistics
+
+
+## Exercise 2 (Prior knowledge about using Box, Markdown)
+
+![_Anurag Anand_](https://uofi.box.com/shared/static/cvgbjob9yfoqele245k1jn7exlvsokvq.jpeg)
+
+
+## Exercise 3 (Syllabus, Markdown) 
+
+**(a)** Are students allowed to work together on homework assignments?
+  
+  + Yes, we can share ideas and help each other in resolving roadblocks
+
+**(b)** Are students allowed to Share code?
+  
+  + No, sharing of code is not allowed
+
+**(c)** What is the "rule of thumb" that I offer to help you maintain academic integrity while completing homework?
+  
+  + Share ideas, not code
+  
+  
+## Exercise 4 (Compass, Markdown) 
+
+**(a)** In an unordered list, give the names of the teaching assistants (TAs) for this course?
+
+  + Diptarka Saha (DS)
+
+**(b)** Which days of the week are Online Office Hours available from the TAs or Instructor?
+  
+  + Mondays: 8pm-10pm (DS)
+  + Wednesdays: 8pm-10pm (DS)
+  + Thursdays: 8pm-10pm (DS)
+  
+## Exercise 5 (Prior knowledge about software, Markdown) 
+
+1. R
+2. Python
+3. SAS
+
+## Exercise 6 (Prior knowledge about data, Markdown) 
+
+Three things that I know about the data:
+
+* It is a crossword of animal names
+* The crossword is completely filled
+* There are animal drawings in the image
+
+Three things that I want to know about the data:
+
+* Frequency count of each alphabet constituting the animal's name
+* Number of distinct animals
+* Assign a label to each animal (vertical / horizontal), depending on how it is filled in the crossword
+
+## Exercise 7 (Prior knowledge about data, Markdown) 
+
+Alphabet | Frequency
+------------- | -------------
+A | $N_a$
+B | $N_b$ 
+C | $N_c$
+D | $N_d$ 
+E | $N_e$ 
+
+
+## Exercise 8 (Prior knowledge about data, Markdown) 
+
+Three things that I know about the data:
+
+* The image contains a scarf
+* The scarf is lying on the floor, unrolled
+* The scarf is made of three distinct colors
+
+Three things that I want to know about the data:
+
+* What does each color represent ?
+* What does the thickness of each colored band represent ?
+* How is the total length of the scarf split across the three different colors ?
+
+## Exercise 9  (Prior knowledge about data, Markdown) 
+
+Band_Number (Left to right) | Band_Color | Thickness
+------------- | ------------- | -------------
+Band1 | Grey | $t_1$
+Band2 |Pink | $t_2$ 
+Band3 |Red | $t_3$
+
+
+## Exercise 10  (Prior knowledge about data, Markdown)
+
+* A kind of data analysis that is sensible for this data set?
+  
+  + Frequecny plot of the three colors that are appearing on the band
+
+* What information is needed to help improve the data so that more analysis can be done?
+  
+  + If we get to know what does each color represent and which process decided the thickness of each band we can do additional analysis

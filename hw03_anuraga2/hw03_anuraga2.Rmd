@@ -1,0 +1,315 @@
+---
+title: "STAT 440: Homework 03"
+author: "Anurag Anand"
+date: "16/03/2021"
+output: html_document
+---
+```{r include=FALSE}
+
+library(readr)
+library(dplyr)
+library(stringr)
+library(lubridate)
+
+```
+
+### Excercise 1
+
+**Show the distributions of all continuous variables in a visualization. Check the data key for a reasonable range of values among these variables. Flag the points that are outside of the reasonable range of values.**
+
+### Excercise 2
+
+Importing the Urbana Rental Inspections Data using R and formatting the input columns
+
+```{r echo=TRUE}
+
+# Reading the data file and printing the descriptor portion of the data 
+urbana_rental_data <- read_csv("https://uofi.box.com/shared/static/b6u4it6rjdjva4ouk4fps7h7ias0u4eu.csv", 
+    col_types = cols(`Expiration Date` = col_date(format = "%m/%d/%Y"), 
+        `Inspection Date` = col_date(format = "%m/%d/%Y")))
+
+print(str(urbana_rental_data))
+```
+
+The shape of the imported data frame is 
+```{r}
+
+print(paste("Number of Rows in the data set:",nrow(urbana_rental_data)))
+print(paste("Number of Columns in the data set:",ncol(urbana_rental_data)))
+
+```
+
+### Excercise 3
+
+Cleaning the adress column
+
+```{r AddressCleaning, echo=TRUE}
+# Extracting the latitude
+urbana_rental_data$Latitude = str_extract(urbana_rental_data$`Mappable Address`,"4\\d+\\.\\d+")
+urbana_rental_data$Longitutde = str_extract(urbana_rental_data$`Mappable Address`,"\\-\\d+\\.\\d+")
+
+# Writing a function to calculate the adress end
+Address_end = function(x){
+  str_locate(x, "\\(")[1]
+}
+
+# Extracting the index where the adress ends and the latitutde and longitude begins
+urbana_rental_data$Address_end_idx = sapply(urbana_rental_data$`Mappable Address`, Address_end)
+
+# Extracting the sub part of the adress before the co-ordinates
+urbana_rental_data$New_Address = str_sub(urbana_rental_data$`Mappable Address`,
+                                        1,
+                                        urbana_rental_data$Address_end_idx-1)
+
+# recombning the co-ordinates in the proper order
+urbana_rental_data$New_Address = str_c(urbana_rental_data$New_Address,
+                                      "(",urbana_rental_data$Latitude,",",
+                                      urbana_rental_data$Longitutde,")")
+
+# Removing all the intermediate columns created and renaming the new adress column
+urbana_rental_data = urbana_rental_data %>% select(-c(`Mappable Address`,
+                                                     "Latitude",
+                                                     "Longitutde",
+                                                     "Address_end_idx")) %>% rename(`Mappable Address`=New_Address)
+
+print(head(urbana_rental_data,5), width = Inf)
+```
+
+### Excercise 4
+
+Finding out the distance to downtown using the haversine formula and the co-ordinates of central urbana **(40.1106 degrees North, 88.2073 degrees West)**
+
+```{r HaverSine, echo=TRUE}
+
+# Haversine distance function
+
+HaversineDistance = function(x){
+  # Central point co-ordinates
+  lat1 = 40.1106
+  long1 = -88.2073
+  
+  # Extracting the latitude and longitude from each row of data
+  lat2 = x["Latitude"]
+  long2 = x["Longitude"]
+  
+  # Setting up the constants pi and R (Radius of Earth in Km)
+  pi = 3.141593
+  R = 6371
+  
+  # Haversine calculation
+  phi1 = lat1 * (pi/180)
+  phi2 = lat2 * (pi/180)
+  del_phi = (lat2 - lat1)*(pi/180)
+  del_lambda = (long2 - long1)*(pi/180)
+  a = sin(del_phi/2)^2 + (cos(phi1)*cos(phi2)*sin(del_lambda/2)^2)
+  c = 2*atan2(sqrt(a),sqrt(1-a))
+  
+  d = (R*c)/1.609344
+  
+}
+
+# Creating the distance to downtown calculation
+urbana_rental_data = urbana_rental_data %>% mutate(
+  Latitude = as.numeric(str_extract(`Mappable Address`,"4\\d+\\.\\d+")),
+  Longitude = as.numeric(str_extract(`Mappable Address`,"\\-\\d+\\.\\d+"))
+)
+
+urbana_rental_data = urbana_rental_data %>% mutate(distance2downtown=apply(urbana_rental_data[,c("Latitude","Longitude")], 1, HaversineDistance))
+
+print(head(urbana_rental_data,5), width = Inf)
+```
+
+### Excercise 5
+
+Printing out the summary statistics of the **distance2downtown** column:
+
+```{r summary, echo=TRUE}
+
+
+paste("Min:",round(min(urbana_rental_data$distance2downtown,na.rm = TRUE),2),
+      "Max:",round(max(urbana_rental_data$distance2downtown,na.rm = TRUE),2),
+      "Median:", round(median(urbana_rental_data$distance2downtown,na.rm = TRUE),2),
+      "Mean:", round(mean(urbana_rental_data$distance2downtown,na.rm = TRUE),2),
+      "Std. Deviation:", round(sd(urbana_rental_data$distance2downtown,na.rm = TRUE),2))
+
+
+```
+
+### Excercise 6
+
+Importing the Champaign County Sheriff Office & Jail Dataset and formatting the column types 
+
+```{r ccsodata, echo=TRUE}
+
+ccso_data <- read_delim("https://uofi.box.com/shared/static/lbah1aw0cwghyrelzur0tk3akh65tin6.txt", 
+    "|", escape_double = FALSE, col_types = cols(booking_date = col_date(format = "%m/%d/%Y"), 
+        booking_time = col_time(format = "%H:%M:%S"), 
+        released_date = col_date(format = "%m/%d/%Y"), 
+        released_time = col_time(format = "%H:%M:%S")), 
+    trim_ws = TRUE)
+
+print(paste0("The shape of the ccso data set is: ",
+             str_conv(nrow(ccso_data),'UTF8'),
+                      " rows and ",
+                      str_conv(ncol(ccso_data),'UTF8')," columns"))
+```
+
+### Excercise 7
+
+Creating year, day, hour, minute, second column and then validating it with time difference obtained from other columns
+
+```{r DateValidation, echo=TRUE}
+
+# Combining the date and time columns in a single column
+ccso_data$booking_date_time = as_datetime(paste(ccso_data$booking_date,ccso_data$booking_time))
+ccso_data$release_date_time = as_datetime(paste(ccso_data$released_date,ccso_data$released_time))
+
+
+# Finding out the time difference in seconds
+ccso_data$timediff = with(ccso_data, difftime(release_date_time,booking_date_time,units="secs"))
+
+# Defining the number of seconds in a year, day, hour and minute
+year_seconds = 31536000
+day_seconds = 86400
+hour_seconds = 3600
+min_seconds = 60
+
+# Findinng out the jail years
+ccso_data$jail_years = as.integer(ccso_data$timediff/year_seconds)
+
+# Finding out the jail days
+ccso_data$jail_days = as.integer((ccso_data$timediff - (ccso_data$jail_years*year_seconds))/day_seconds)
+
+#Finding out the jail hours
+ccso_data$jail_hours = as.integer((ccso_data$timediff - 
+                                     ((ccso_data$jail_years*year_seconds)+
+                                        (ccso_data$jail_days*day_seconds)))/hour_seconds)
+
+# Finding out the jail minutes
+ccso_data$jail_minutes = as.integer((ccso_data$timediff - 
+  (ccso_data$jail_years*year_seconds+
+     ccso_data$jail_days*day_seconds+
+     ccso_data$jail_hours*hour_seconds))/min_seconds)
+
+# Finding out the jail seconds
+ccso_data$jail_seconds = ccso_data$timediff - 
+  (ccso_data$jail_years*year_seconds+
+     ccso_data$jail_days*day_seconds+
+     ccso_data$jail_hours*hour_seconds+
+     ccso_data$jail_minutes*min_seconds)
+
+
+## Creating the two time spent in jail columns
+ccso_data = ccso_data %>% mutate(
+  time_spent_in_jail1 = (jail_years * 8760) + (jail_days * 24) + jail_hours +(jail_minutes/60) + (jail_seconds/3600)
+)
+
+ccso_data$time_spent_in_jail2 = with(ccso_data, difftime(release_date_time,booking_date_time,units="hours"))
+
+# Checking whether the two columns are equal or not by comparing the sums of the two columns
+
+print(sum(ccso_data$time_spent_in_jail1,na.rm = TRUE))
+print(sum(ccso_data$time_spent_in_jail2,na.rm = TRUE))
+
+# Printing the first 5
+print(head(ccso_data[,c("jacket_number",
+                        "booking_date",
+                        "booking_time",
+                        "released_date",
+                        "released_time",
+                        "time_spent_in_jail1",
+                        "time_spent_in_jail2")],5), width = Inf)
+
+# ... and the last 5 observations
+print(tail(ccso_data[,c("jacket_number",
+                        "booking_date",
+                        "booking_time",
+                        "released_date",
+                        "released_time",
+                        "time_spent_in_jail1",
+                        "time_spent_in_jail2")],5), width = Inf)
+
+```
+
+### Excercise 8
+
+Filtering the data for four towns in Champaign County (Champaign, Rantoul, Savoy, and Urbana)
+
+```{r FilteringCity, echo=TRUE}
+
+
+pattern = "^RAN\\w+L|^RAN\\w+U|^UR\\w+|^UU\\w+|^SAV\\w+|^CHA\\w+GN|^CHA\\w+NG|^CHA\\w+IN|^CHA\\w+\\|"
+cc = ccso_data[which(grepl(pattern,ccso_data$city)),]
+
+# writing a function for correcting the city name name
+CorrectCityName = function(x){
+  if (grepl("^CHA\\w+GN|^CHA\\w+NG|^CHA\\w+IN|^CHA\\w+\\|",x)) {
+    "CHAMPAIGN"
+  } else if (grepl("^UR\\w+|^UU\\w+",x)){
+    "URBANA"
+  } else if (grepl("^SAV\\w+",x)){
+    "SAVOY"
+  } else {
+    "RANTOUL"
+  }
+}
+
+# Looping through all the rows
+cc$city_correct = lapply(cc$city, CorrectCityName)
+
+# Sorting the data set on the corrected city name and selecting the given columns
+
+cc_sort = cc %>% arrange(city_correct) %>% select(jacket_number,
+                                             `age arrest`,
+                                             city,
+                                             state,
+                                             sex,
+                                             race)
+
+# printing the first 5 rows of the data set
+print(head(cc_sort,5),width = Inf)
+
+# printing the last 5 rows of the data set
+print(tail(cc_sort,5),width = Inf)
+
+```
+
+### Excercise 9
+
+Using the dataset created in the previous excercise finding out the average jail time spent by two groups **(black people or non-black people)**:
+
+```{r JailTime, echo=TRUE}
+
+## Finding out the jail time in hours 
+cc$time_spent_in_jail2 = with(cc, difftime(release_date_time,booking_date_time,units="hours"))
+
+## Creating a "Black" vs "Non-Black" Flag
+cc$race_flag = sapply(cc$race, function(x){ifelse(x == "Black", "Black","Non-Black")})
+
+## summarizing the data set to get the average time spent in jail by both the categories
+
+cc %>% filter(!is.na(race_flag)) %>% 
+  group_by(race_flag) %>% 
+  summarise(avg_jail_time = mean(time_spent_in_jail2,na.rm = TRUE))
+
+```
+
+Looking at the table above we can see that the Black people have a higher jail time on average
+
+
+### Excercise 10
+
+Defining recidivism: If there are multiple booking time against a particular jacket number that indicates a repeated offense. So I would be taking distinct count of booking date time against each jacket number and wherever that is more than 1, it will be an indication of repeated offense
+
+```{r recidivism, echo=TRUE}
+
+## We are first selecting the two concerned columns and then grouping by jacket_number
+recidivists = ccso_data %>% 
+  select(jacket_number,booking_date_time) %>% 
+  group_by(jacket_number) %>% 
+  summarise(offense_count = n_distinct(booking_date_time)) %>% filter(offense_count > 1) %>% nrow()
+
+print(recidivists)
+```
+
+Therefore the number of repeate offender is **1387**
